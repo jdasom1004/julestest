@@ -1,33 +1,57 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import Parser from 'rss-parser';
+import { StackNavigationProp } from '@react-navigation/stack';
 
-const parser = new Parser();
-const FEED_URL = 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko';
+// Define the type for a single article
+interface Article {
+  title: string;
+  link: string;
+  id: string;
+}
 
-const NewsFeedScreen = ({ navigation }) => {
-  const [feed, setFeed] = useState([]);
+// Define the type for the navigation props
+type RootStackParamList = {
+  NewsFeed: undefined;
+  Article: { url: string };
+};
+
+type NewsFeedScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'NewsFeed'
+>;
+
+interface Props {
+  navigation: NewsFeedScreenNavigationProp;
+}
+
+const API_URL = 'http://127.0.0.1:8000/api/news/';
+
+const NewsFeedScreen: React.FC<Props> = ({ navigation }) => {
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchFeed = async () => {
+    const fetchNews = async () => {
       try {
-        const parsedFeed = await parser.parseURL(FEED_URL);
-        setFeed(parsedFeed.items);
-        setError(null);
+        const response = await fetch(API_URL);
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data: Article[] = await response.json();
+        setArticles(data);
       } catch (e) {
         setError('뉴스를 불러오는 데 실패했습니다.');
-        console.error('Error fetching feed:', e);
+        console.error('Error fetching news:', e);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFeed();
+    fetchNews();
   }, []);
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: Article }) => (
     <TouchableOpacity
       style={styles.itemContainer}
       onPress={() => navigation.navigate('Article', { url: item.link })}
@@ -56,10 +80,9 @@ const NewsFeedScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={feed}
+        data={articles}
         renderItem={renderItem}
-        keyExtractor={(item) => item.guid}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        keyExtractor={(item) => item.id}
       />
     </View>
   );
@@ -95,9 +118,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: '#333',
-  },
-  separator: {
-    height: 0, // We are using margins now, so separator is not needed
   },
   errorText: {
     color: '#d9534f',
